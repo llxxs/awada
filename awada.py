@@ -4,6 +4,7 @@ import socket
 import time
 import multiprocessing
 import threading
+import select
 
 def usage():
     print('awada portftd')
@@ -13,12 +14,17 @@ def usage():
 
 def subTransmit(recvier,sender,stopflag):
     while not stopflag['flag']:
+        data = b""
         try:
-            data = recvier[0].recv(20480)
+            if select.select([recvier[0]],[],[]) == ([recvier[0]],[],[]):
+                data = recvier[0].recv(20480)
+                if len(data) == 0:
+                    time.sleep(0.1) #select加sleep为了多平台都可用
+                    continue
             print("Recv from ",recvier[1])
             sender[0].send(data)
             print("Send to ",sender[1])
-        except:
+        except Exception as e:
             stopflag['flag'] = True
             try:
                 recvier[0].close()
@@ -45,7 +51,7 @@ def bindToBind(portA,portB):
     try:
         print("Listen port %d." % portA)
         socketA.bind(('0.0.0.0',portA))
-        socketA.listen()
+        socketA.listen(10)
         print("Listen port ok!")
     except:
         print("Listen port failed!")
@@ -54,7 +60,7 @@ def bindToBind(portA,portB):
     try:
         print("Listen port %d." % portB)
         socketB.bind(('0.0.0.0',portB))
-        socketB.listen()
+        socketB.listen(10)
         print("Listen port ok!")
     except:
         print("Listen port failed!")
@@ -81,7 +87,7 @@ def bindToConn(port,target,targetPort):
     try:
         print("Listen port %d." % port)
         socketA.bind(localAddress)
-        socketA.listen()
+        socketA.listen(10)
         print("Listen port ok!")
     except:
         print("Listen port failed!")
@@ -96,6 +102,7 @@ def bindToConn(port,target,targetPort):
         try:
             targetConn.connect(targetAddress)
             multiprocessing.Process(target=transmit,args=((connA,addressA,targetConn,targetAddress),)).start()
+            time.sleep(1)
             print("Create thread ok!")
         except TimeoutError:
             print("Connect to ",targetAddress," failed!")
@@ -105,6 +112,7 @@ def bindToConn(port,target,targetPort):
             print("Something wrong!")
             connA.close()
             exit()
+
 def main():
     if '-h' in sys.argv:
         usage()
@@ -117,7 +125,9 @@ def main():
             assert portA != 0 and portB != 0
             bindToBind(portA,portB)
         except:
-            print("Bad parameters")
+            print("Something wrong")
+        exit()
+
     elif '-tran' in sys.argv:
         index = sys.argv.index('-tran')
         try:
@@ -127,7 +137,8 @@ def main():
             assert port!=0 and targetPort!=0
             bindToConn(port,target,targetPort)
         except:
-            print("Bad parameters")
+            print("Something wrong")
+        exit()
 
     usage()
 
