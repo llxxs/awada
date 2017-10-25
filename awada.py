@@ -9,6 +9,7 @@ def usage():
     print('awada portftd')
     print('-h; help')
     print('-listen portA,portB; listen two ports and transmit data')
+    print('-tran localport,target,targetport; listen a local port and transmit data to target:targetport')
 
 def subTransmit(recvier,sender,stopflag):
     while not stopflag['flag']:
@@ -70,26 +71,65 @@ def bindToBind(portA,portB):
         time.sleep(1)
         print("Create thread ok!")
 
+def bindToConn(port,target,targetPort):
+    socketA = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    socketA.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+    localAddress = ('0.0.0.0',port)
+    targetAddress = (target,targetPort)
+
+    try:
+        print("Listen port %d." % port)
+        socketA.bind(localAddress)
+        socketA.listen()
+        print("Listen port ok!")
+    except:
+        print("Listen port failed!")
+        exit()
+
+    while True:
+        print("Wait for connection at port %d" % localAddress[1])
+        connA, addressA = socketA.accept()
+        print("Accept connection from ",addressA)
+        targetConn = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        targetConn.settimeout(5)
+        try:
+            targetConn.connect(targetAddress)
+            multiprocessing.Process(target=transmit,args=((connA,addressA,targetConn,targetAddress),)).start()
+            print("Create thread ok!")
+        except TimeoutError:
+            print("Connect to ",targetAddress," failed!")
+            connA.close()
+            exit()
+        except:
+            print("Something wrong!")
+            connA.close()
+            exit()
 def main():
-    lenOfArgv = len(sys.argv)
-    if lenOfArgv <= 1:
+    if '-h' in sys.argv:
         usage()
         exit()
-    elif lenOfArgv == 2 and sys.argv[1] == '-h':
-        usage()
-        exit()
-    elif lenOfArgv == 4:
-        if sys.argv[1] == '-listen':
-            try:
-                portA = int(sys.argv[2])
-                portB = int(sys.argv[3])
-                assert portA != 0 and portB != 0
-                bindToBind(portA,portB)
-            except:
-                print("Bad parameters")
-        else:
-            usage()
+    if '-listen' in sys.argv:
+        index = sys.argv.index('-listen')
+        try:
+            portA = int(sys.argv[index+1])
+            portB = int(sys.argv[index+2])
+            assert portA != 0 and portB != 0
+            bindToBind(portA,portB)
+        except:
+            print("Bad parameters")
+    elif '-tran' in sys.argv:
+        index = sys.argv.index('-tran')
+        try:
+            port = int(sys.argv[index+1])
+            target = sys.argv[index+2]
+            targetPort = int(sys.argv[index+3])
+            assert port!=0 and targetPort!=0
+            bindToConn(port,target,targetPort)
+        except:
+            print("Bad parameters")
+
+    usage()
 
 if __name__ == '__main__':
     main()
