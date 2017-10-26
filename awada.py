@@ -7,17 +7,17 @@ import threading
 import select
 
 def usage():
-    print('awada portftd')
-    print('-h; help')
-    print('-v; verbose')
-    print('-listen portA,portB; listen two ports and transmit data')
-    print('-tran localport,targetip,targetport; listen a local port and transmit data to target:targetport')
-    print('-slave reverseip,reverseport,targetip,targetport; connect reverseip:reverseport with targetip:targetport')
+    print('AWADA port forward tools')
+    print('-h: help')
+    print('-v: verbose')
+    print('-listen portA,portB: listen two ports and transmit data')
+    print('-tran localport,targetip,targetport: listen a local port and transmit data from localport to target:targetport')
+    print('-slave reverseip,reverseport,targetip,targetport: connect reverseip:reverseport with targetip:targetport')
 
 def subTransmit(recvier,sender,stopflag):
+    verbose = False
     if '-v' in sys.argv:
         verbose = True
-    isReleased = False
     while not stopflag['flag']:
         data = b""
         try:
@@ -26,32 +26,30 @@ def subTransmit(recvier,sender,stopflag):
                 if len(data) == 0:
                     time.sleep(0.1) #select加sleep为了多平台都可用
                     continue
-            if 'lock' in stopflag and not isReleased:
-                stopflag['lock'].set()
-                isReleased = True
             sender[0].send(data)
             bytes = len(data)
             if verbose:
-                print("Recv from ",recvier[1],"%db" % bytes)
-                print("Send to ",sender[1],"%db" % bytes)
+                print("Recv from %s:%d" % recvier[1],"%d bytes" % bytes)
+                print("Send to   %s:%d" % sender[1],"%d bytes" % bytes)
         except Exception as e:
             stopflag['flag'] = True
             try:
                 recvier[0].close()
+            except:
+                pass
+            try:
                 sender[0].close()
             except:
                 pass
 
 def transmit(conns,lock=None):
     stopFlag = {'flag':False}
-    if lock is not None:
-        stopFlag['lock'] = lock
     connA, addressA, connB, addressB = conns
     threading.Thread(target=subTransmit,args=((connA,addressA),(connB,addressB), stopFlag)).start()
     threading.Thread(target=subTransmit, args=((connB, addressB), (connA, addressA), stopFlag)).start()
     while not stopFlag['flag']:
         time.sleep(3)
-    print("Connection closed.",addressA,"---",addressB)
+    print("%s:%d" % addressA,"<->","%s:%d" % addressB," Closed.")
 
 def bindToBind(portA,portB):
     socketA = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -61,33 +59,33 @@ def bindToBind(portA,portB):
     socketB.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
-        print("Listen port %d." % portA)
+        print("Listen Port %d." % portA)
         socketA.bind(('0.0.0.0',portA))
         socketA.listen(10)
-        print("Listen port ok!")
+        print("Listen Port Ok!")
     except:
-        print("Listen port failed!")
+        print("Listen Port Failed!")
         exit()
 
     try:
-        print("Listen port %d." % portB)
+        print("Listen Port %d." % portB)
         socketB.bind(('0.0.0.0',portB))
         socketB.listen(10)
-        print("Listen port ok!")
+        print("Listen Port Ok!")
     except:
-        print("Listen port failed!")
+        print("Listen port Failed!")
         exit()
 
     while(True):
-        print("Wait for connection at port %d" % portA)
+        print("Wait For Connection At Port %d" % portA)
         connA, addressA = socketA.accept()
-        print("Accept connection from ",addressA)
-        print("Wait for another connection at port %d" % portB)
+        print("Accept Connection From %s:%d" % addressA)
+        print("Wait For Another Connection At Port %d" % portB)
         connB, addressB = socketB.accept()
-        print("Accept connecton from ",addressB)
+        print("Accept Connecton From %s:%d" % addressB)
         multiprocessing.Process(target=transmit,args=((connA,addressA,connB,addressB),)).start()
         time.sleep(1)
-        print("Create thread ok!")
+        print("Create Thread Ok!")
 
 def bindToConn(port,target,targetPort):
     socketA = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -97,27 +95,27 @@ def bindToConn(port,target,targetPort):
     targetAddress = (target,targetPort)
 
     try:
-        print("Listen port %d." % port)
+        print("Listen Port %d." % port)
         socketA.bind(localAddress)
         socketA.listen(10)
-        print("Listen port ok!")
+        print("Listen Port Ok!")
     except:
-        print("Listen port failed!")
+        print("Listen Port Failed!")
         exit()
 
     while True:
-        print("Wait for connection at port %d" % localAddress[1])
+        print("Wait For Connection At Port %d" % localAddress[1])
         connA, addressA = socketA.accept()
-        print("Accept connection from ",addressA)
+        print("Accept Connection From %s:%d" % addressA)
         targetConn = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         targetConn.settimeout(5)
         try:
             targetConn.connect(targetAddress)
             multiprocessing.Process(target=transmit,args=((connA,addressA,targetConn,targetAddress),)).start()
             time.sleep(1)
-            print("Create thread ok!")
+            print("Create Thread Ok!")
         except TimeoutError:
-            print("Connect to ",targetAddress," failed!")
+            print("Connect To %s:%d Failed!" % targetAddress)
             connA.close()
             exit()
         except:
@@ -125,57 +123,52 @@ def bindToConn(port,target,targetPort):
             connA.close()
             exit()
 
-
-
 def connToConn(reverseIp,reversePort,targetIp,targetPort):
-    continueFlag = False
+    reverseAddress = (reverseIp, reversePort)
+    targetAddress = (targetIp, targetPort)
     while True:
         data = b""
         reverseSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         targetSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        reverseAddress = (reverseIp,reversePort)
-        targetAddress = (targetIp,targetPort)
-
         try:
-            print("Connect ot ",reverseAddress)
+            print("Connect To %s:%d" % reverseAddress)
             reverseSocket.connect(reverseAddress)
-            print("Connect ok!")
+            print("Connect Ok!")
         except:
-            print("Connect failed!")
+            print("Connect Failed!")
             exit()
         while True:
             try:
                 if select.select([reverseSocket],[],[]) == ([reverseSocket],[],[]):
                     data = reverseSocket.recv(20480)
-                    if len(data) == 0:
-                        time.sleep(0.1)
-                        continue
-                    else:
+                    if len(data) != 0:
                         break
-                time.sleep(0.1)
             except:
-                continueFlag = True
-        if continueFlag == True:
-            continueFlag = False
-            continue
+                continue
 
         while True:
             try:
                 print("Connect ot ",targetAddress)
                 targetSocket.connect(targetAddress)
-                targetSocket.send(data)
                 print("Connect ok!")
             except:
-                print("TargetPort is not open")
+                print("TargetPort Is Not Open")
                 reverseSocket.close()
-                continueFlag = True
-                break
-        if continueFlag == True:
-            continueFlag = False
-            continue
+                exit()
+            try:
+                targetSocket.send(data)
+            except:
+                continue
+            break
+        print("All Connect Ok!")
 
-        multiprocessing.Process(target=transmit,args=((reverseSocket,reverseAddress,targetSocket,targetAddress))).start()
-
+        try:
+            multiprocessing.Process(target=transmit,args=((reverseSocket,reverseAddress,targetSocket,targetAddress),)).start()
+            print("Create Thread Success!")
+            #time.sleep(1)
+        except:
+            print("Create Thread Failed!")
+            exit()
 
 def main():
     global verbose
@@ -190,7 +183,7 @@ def main():
             assert portA != 0 and portB != 0
             bindToBind(portA,portB)
         except:
-            print("Something wrong")
+            print("Something Wrong")
         exit()
 
     elif '-tran' in sys.argv:
@@ -202,7 +195,7 @@ def main():
             assert port!=0 and targetPort!=0
             bindToConn(port,target,targetPort)
         except:
-            print("Something wrong")
+            print("Something Wrong")
         exit()
     elif '-slave' in sys.argv:
         index = sys.argv.index('-slave')
@@ -213,9 +206,8 @@ def main():
             targetPort = int(sys.argv[index+4])
             connToConn(reverseIp,reversePort,targetIp,targetPort)
         except:
-            print("Something wrong")
+            print("Something Wrong")
         exit()
-
     usage()
 
 if __name__ == '__main__':
