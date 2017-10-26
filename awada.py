@@ -15,7 +15,10 @@ def usage():
     print('-slave reverseip,reverseport,targetip,targetport: connect reverseip:reverseport with targetip:targetport')
 
 def subTransmit(recvier,sender,stopflag):
+    recvier[0].setblocking(False)
+    sender[0].setblocking(False)
     verbose = False
+    i = 0
     if '-v' in sys.argv:
         verbose = True
     while not stopflag['flag']:
@@ -24,13 +27,17 @@ def subTransmit(recvier,sender,stopflag):
             if select.select([recvier[0]],[],[]) == ([recvier[0]],[],[]):
                 data = recvier[0].recv(20480)
                 if len(data) == 0:
-                    time.sleep(0.1) #select加sleep为了多平台都可用
-                    continue
+                    #time.sleep(0.1) #select加sleep为了多平台都可用
+                    #i += 1
+                    #if i == 5:
+                    #    i = 0
+                    raise Exception()
+                    #continue
             sender[0].send(data)
             bytes = len(data)
             if verbose:
-                print("Recv from %s:%d" % recvier[1],"%d bytes" % bytes)
-                print("Send to   %s:%d" % sender[1],"%d bytes" % bytes)
+                print("Recv From %s:%d" % recvier[1],"%d bytes" % bytes)
+                print("Send To   %s:%d" % sender[1],"%d bytes" % bytes)
         except Exception as e:
             stopflag['flag'] = True
             try:
@@ -41,6 +48,7 @@ def subTransmit(recvier,sender,stopflag):
                 sender[0].close()
             except:
                 pass
+            print("Closed Two Connections.")
 
 def transmit(conns,lock=None):
     stopFlag = {'flag':False}
