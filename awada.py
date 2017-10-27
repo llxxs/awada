@@ -15,52 +15,60 @@ def usage():
     print('-slave reverseip,reverseport,targetip,targetport: connect reverseip:reverseport with targetip:targetport')
 
 def subTransmit(recvier,sender,stopflag):
-    #recvier[0].setblocking(False)
-    #sender[0].setblocking(False)
+    theRecvier = recvier[0]
+    theSender = sender[0]
     verbose = False
     i = 0
+    recvierData = b""
+    senderData = b""
     if '-v' in sys.argv:
         verbose = True
     while not stopflag['flag']:
         data = b""
         try:
-            rlist, wlist, elist = select.select([recvier[0]],[],[],0.3)
-            if recvier[0] in rlist:
-                data = recvier[0].recv(20480)
-                if len(data) == 0:
-                    #time.sleep(0.1) #select加sleep为了多平台都可用
-                    #i += 1
-                    #if i == 5:
-                    #    i = 0
-                    raise Exception()
-                    #continue
-            else:
-                continue
-            sender[0].send(data)
-            bytes = len(data)
-            if verbose:
-                print("Recv From %s:%d" % recvier[1],"%d bytes" % bytes)
-                print("Send To   %s:%d" % sender[1],"%d bytes" % bytes)
+            rlist, wlist, elist = select.select([theRecvier,theSender],[theRecvier,theSender],[],0.1)
+            if len(rlist) != 0:
+                for socketer in rlist:
+                    data = socketer.recv(20480)
+                    if len(data) == 0:
+                        raise Exception('连接已断开')
+                    if socketer == theRecvier:
+                        senderData += data
+                        address = recvier[1]
+                    else:
+                        recvierData += data
+                        address = sender[1]
+                    bytes = len(data)
+                    if verbose:
+                        print("Recv From %s:%d" % address," %d bytes" % bytes)
+            if len(senderData) != 0:
+                bytes = len(senderData)
+                if verbose:
+                    print("Send to %s:%d" % sender[1]," %d bytes" % bytes)
+                theSender.send(senderData)
+                senderData = b""
+            if len(recvierData) != 0:
+                bytes = len(recvierData)
+                if verbose:
+                    print("Send to %s:%d", recvier[1], " %d bytes" % bytes)
+                theRecvier.send(recvierData)
+                recvierData = b""
         except Exception as e:
             stopflag['flag'] = True
             try:
-                recvier[0].close()
+                theRecvier.close()
+                theSender.close()
             except:
                 pass
-            try:
-                sender[0].close()
-            except:
-                pass
-            print("Closed Two Connections.")
+            print("Closed Two Connections")
 
 def transmit(conns,lock=None):
     stopFlag = {'flag':False}
     connA, addressA, connB, addressB = conns
     threading.Thread(target=subTransmit,args=((connA,addressA),(connB,addressB), stopFlag)).start()
-    threading.Thread(target=subTransmit, args=((connB, addressB), (connA, addressA), stopFlag)).start()
     while not stopFlag['flag']:
-        time.sleep(3)
-    print("%s:%d" % addressA,"<->","%s:%d" % addressB," Closed.")
+        time.sleep(1)
+    print("%s:%d" % addressA,"<->","%s:%d" % addressB," Closed")
 
 def bindToBind(portA,portB):
     socketA = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
