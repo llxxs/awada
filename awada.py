@@ -57,7 +57,12 @@ def subTransmit(recvier,sender,stopflag):
         except Exception as e:
             stopflag['flag'] = True
             try:
+                theRecvier.shutdown(socket.SHUT_RDWR)
                 theRecvier.close()
+            except:
+                pass
+            try:
+                theSender.shutdown(socket.SHUT_RDWR)
                 theSender.close()
             except:
                 pass
