@@ -15,8 +15,8 @@ def usage():
     print('-slave reverseip,reverseport,targetip,targetport: connect reverseip:reverseport with targetip:targetport')
 
 def subTransmit(recvier,sender,stopflag):
-    recvier[0].setblocking(False)
-    sender[0].setblocking(False)
+    #recvier[0].setblocking(False)
+    #sender[0].setblocking(False)
     verbose = False
     i = 0
     if '-v' in sys.argv:
@@ -24,7 +24,8 @@ def subTransmit(recvier,sender,stopflag):
     while not stopflag['flag']:
         data = b""
         try:
-            if select.select([recvier[0]],[],[]) == ([recvier[0]],[],[]):
+            rlist, wlist, elist = select.select([recvier[0]],[],[],0.3)
+            if recvier[0] in rlist:
                 data = recvier[0].recv(20480)
                 if len(data) == 0:
                     #time.sleep(0.1) #select加sleep为了多平台都可用
@@ -33,6 +34,8 @@ def subTransmit(recvier,sender,stopflag):
                     #    i = 0
                     raise Exception()
                     #continue
+            else:
+                continue
             sender[0].send(data)
             bytes = len(data)
             if verbose:
